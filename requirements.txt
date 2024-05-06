@@ -2,3 +2,4 @@ numpy
 termcolor
 sounddevice
 soundfile
+wakepy

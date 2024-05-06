@@ -9,6 +9,7 @@ from queue import Queue
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
+from wakepy import keep
 from termcolor import colored
 
 from timeit import default_timer as timer
@@ -113,33 +114,33 @@ def callback(
     # Add the data to the queue
     audio_queue.put(indata.copy())
 
+with keep.presenting():
+    with sd.Stream(callback=callback):
 
-with sd.Stream(callback=callback):
+        try:
+            while True:
+                # Pull a chunk of audio from the queue
+                # This call is blocking, so if the queue is empty, we will wait until chunk has been added
+                loudness = np.linalg.norm(audio_queue.get()) * 10
+                bar = int(loudness * (BAR_LENGTH / max_audio_value))
 
-    try:
-        while True:
-            # Pull a chunk of audio from the queue
-            # This call is blocking, so if the queue is empty, we will wait until chunk has been added
-            loudness = np.linalg.norm(audio_queue.get()) * 10
-            bar = int(loudness * (BAR_LENGTH / max_audio_value))
+                # # Check if we need to pause
+                # if keyboard.is_pressed('p'):
+                #     # Flip the boolean
+                #     scimia_enabled = not scimia_enabled
+                #     print(f"\n\n p to {colored('pause','red') if scimia_enabled else colored('resume','red')}!" + "\033[F" * 3)
+                #     time.sleep(0.3)
 
-            # # Check if we need to pause
-            # if keyboard.is_pressed('p'):
-            #     # Flip the boolean
-            #     scimia_enabled = not scimia_enabled
-            #     print(f"\n\n p to {colored('pause','red') if scimia_enabled else colored('resume','red')}!" + "\033[F" * 3)
-            #     time.sleep(0.3)
-
-            # If we are quiet, then print the audio bar
-            if loudness < max_audio_value:
-                print(" [" + "|" * bar + " " * (BAR_LENGTH - bar) + "]", end="\r")
-            else:
-                # Add the color red if we have passed the audio threshold
-                print(colored(" [" + "!" * BAR_LENGTH + "]", "red"), end="\r")
-                # Play a sound to the user to let them know that they are loud
-                if scimia_enabled and (timer() - start) > 4:
-                    start = timer()
-                    sd.play(data, samplerate)
-                    sd.wait()
-    except KeyboardInterrupt:
-        print("\n\n\nStopping...")
+                # If we are quiet, then print the audio bar
+                if loudness < max_audio_value:
+                    print(" [" + "|" * bar + " " * (BAR_LENGTH - bar) + "]", end="\r")
+                else:
+                    # Add the color red if we have passed the audio threshold
+                    print(colored(" [" + "!" * BAR_LENGTH + "]", "red"), end="\r")
+                    # Play a sound to the user to let them know that they are loud
+                    if scimia_enabled and (timer() - start) > 4:
+                        start = timer()
+                        sd.play(data, samplerate)
+                        sd.wait()
+        except KeyboardInterrupt:
+            print("\n\n\nStopping...")
